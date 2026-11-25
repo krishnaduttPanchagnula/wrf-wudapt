@@ -10,7 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from digital_twin import CaseRequest, apply_scenario, compare_cases, prepare_case, run_baseline  # noqa: E402
+from digital_twin import (CaseRequest, apply_scenario, compare_cases, compare_years,  # noqa: E402
+                          prepare_case, run_baseline, run_study,
+                          write_comparison_report)
 
 
 def load(path: str):
@@ -37,6 +39,18 @@ def main() -> None:
     r.add_argument("request")
     r.add_argument("proposal")
     r.add_argument("--root", default=str(ROOT / "output"))
+    rep = sub.add_parser("report", help="render comparison and validation reports")
+    rep.add_argument("results", help="a study's results directory")
+    rep.add_argument("--out", help="output directory (default: results)")
+    y = sub.add_parser("compare-years")
+    y.add_argument("first", help="first study's results directory")
+    y.add_argument("second", help="second study's results directory")
+    y.add_argument("--out", required=True)
+    yr = sub.add_parser("run-years")
+    yr.add_argument("first_request")
+    yr.add_argument("second_request")
+    yr.add_argument("proposal")
+    yr.add_argument("--root", default=str(ROOT / "output"))
 
     args = p.parse_args()
     if args.cmd == "prepare":
@@ -48,14 +62,23 @@ def main() -> None:
     elif args.cmd == "compare":
         compare_cases(Path(args.baseline), Path(args.scenario), Path(args.out))
     elif args.cmd == "run":
-        req = CaseRequest(**load(args.request))
-        name = f"twin_{req.lat:.4f}_{req.lon:.4f}_{req.start_dt:%Y%m%dT%H}"
-        root = Path(args.root) / name
-        base = prepare_case(req, root / "baseline")
-        run_baseline(base)
-        cf = apply_scenario(base, load(args.proposal), root / "scenario")
-        compare_cases(base, cf, root / "results")
-        print(f"digital-twin run complete -> {root}")
+        study = run_study(CaseRequest(**load(args.request)), load(args.proposal),
+                          Path(args.root))
+        print(f"digital-twin run complete -> {study}")
+    elif args.cmd == "report":
+        print(write_comparison_report(
+            Path(args.results), Path(args.out) if args.out else None))
+    elif args.cmd == "compare-years":
+        compare_years(Path(args.first), Path(args.second), Path(args.out))
+    elif args.cmd == "run-years":
+        first = CaseRequest(**load(args.first_request))
+        second = CaseRequest(**load(args.second_request))
+        proposal = load(args.proposal)
+        root = Path(args.root)
+        a = run_study(first, proposal, root)
+        b = run_study(second, proposal, root)
+        compare_years(a / "results", b / "results", root / "years")
+        print(f"two-year digital-twin run complete -> {root / 'years'}")
 
 
 if __name__ == "__main__":

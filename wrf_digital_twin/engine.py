@@ -257,6 +257,72 @@ def apply_scenario(case: Path, scenario: dict, out: Path) -> Path:
     return out
 
 
+def write_comparison_report(results: Path, out: Path | None = None) -> Path:
+    """Write the hourly base / proposal / difference page next to a study's CSVs."""
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from compare import load_zonal, side_by_side, side_by_side_html
+
+    results = Path(results)
+    out = Path(out) if out else results
+    out.mkdir(parents=True, exist_ok=True)
+    a = load_zonal(results / "zonal_baseline.csv")
+    b = load_zonal(results / "zonal_scenario.csv")
+    metrics = results / "results.json"
+    validation = json.loads(metrics.read_text()).get("validation") if metrics.exists() else None
+    path = out / "base_proposal_difference.html"
+    path.write_text(side_by_side_html(side_by_side(a, b), validation))
+    write_validation_report(results, out)
+    return path
+
+
+def write_validation_report(results: Path, out: Path | None = None) -> Path:
+    """Compile the validation, skill and provenance in results.json into a document."""
+    results = Path(results)
+    out = Path(out) if out else results
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "VALIDATION.md"
+    metrics = results / "results.json"
+    data = json.loads(metrics.read_text()) if metrics.exists() else {}
+    validation = data.get("validation")
+
+    def num(value, digits=3):
+        return f"{value:.{digits}f}" if isinstance(value, (int, float)) else "—"
+
+    lines = [f"# Validation — generated from `{metrics}`", ""]
+    if not validation:
+        lines += [f"No validation metrics found in `{metrics}`.",
+                  "Do not present these results as validated (see CONSTRAINTS.md)."]
+    else:
+        lines += [f"Source: {validation.get('source', 'unrecorded')}.",
+                  "An independent reanalysis is not a station observation; keep the held-out window.",
+                  "", "| Window | n | Bias (K) | MAE (K) | RMSE (K) |",
+                  "|---|---:|---:|---:|---:|"]
+        for label, key in (("Full", "full"), ("Held out 12–18Z", "held_out_12_18Z")):
+            s = validation.get(key, {})
+            lines.append(f"| {label} | {s.get('n', '—')} | {num(s.get('bias'))} | "
+                         f"{num(s.get('mae'))} | {num(s.get('rmse'))} |")
+        emulator = data.get("emulator")
+        if emulator:
+            lines += ["", "## Emulator skill", "",
+                      "| Split | RMSE (K) | MAE (K) | R² | Naive RMSE (K) |",
+                      "|---|---:|---:|---:|---:|"]
+            for label, key in (("LCZ-blocked", "lcZ_blocked"),
+                               ("Time-blocked 2h", "time_blocked_2h")):
+                s = emulator.get(key, {})
+                lines.append(f"| {label} | {num(s.get('rmse'))} | {num(s.get('mae'))} | "
+                             f"{num(s.get('r2'))} | {num(s.get('naive_rmse'))} |")
+            lines += ["", f"Support check: {emulator.get('support_check', 'not recorded')}."]
+        provenance = data.get("provenance")
+        if provenance:
+            lines += ["", "## Provenance", "",
+                      f"- Sources: {provenance.get('sources', 'not recorded')}",
+                      f"- Namelist SHA-256: {provenance.get('namelist_sha256', 'not recorded')}",
+                      f"- LCZ GeoTIFF SHA-256: {provenance.get('lcz_tif_sha256', 'not recorded')}"]
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
 def compare_cases(baseline: Path, scenario: Path, out: Path) -> Path:
     """Write tables and QGIS-ready exports: per-cell ΔT2 and zonal means."""
     out.mkdir(parents=True, exist_ok=True)
@@ -288,5 +354,86 @@ def compare_cases(baseline: Path, scenario: Path, out: Path) -> Path:
         "mean_delta_T2_K": float(np.nanmean(d)),
         "cells_cooled": int(np.nansum(d < 0)), "cells": int(d.size),
     }, indent=2))
+    write_comparison_report(out)
     print(f"comparison exported -> {out}")
+    return out
+
+
+def study_name(request: CaseRequest) -> str:
+    """Directory name for one study, reused by the CLI and the desktop app."""
+    return f"twin_{request.lat:.4f}_{request.lon:.4f}_{request.start_dt:%Y%m%dT%H}"
+
+
+def run_study(request: CaseRequest, proposal: dict, root: Path) -> Path:
+    """Prepare, run, and compare one baseline/counterfactual study."""
+    study = Path(root) / study_name(request)
+    base = prepare_case(request, study / "baseline")
+    run_baseline(base)
+    cf = apply_scenario(base, proposal, study / "scenario")
+    compare_cases(base, cf, study / "results")
+    return study
+
+
+def compare_years(first: Path, second: Path, out: Path) -> Path:
+    """Compare two completed studies by LCZ and calendar hour.
+
+    ``first`` and ``second`` are their ``results/`` directories. Baseline T2 is
+    compared directly; when both studies have a counterfactual, their *effects*
+    (scenario - baseline) are compared instead, so a change in cooling is not
+    mistaken for a change in weather. Years are aligned on month-day and hour.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from compare import compare, load_zonal
+
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    def zonal(results: Path, name: str):
+        path = results / f"zonal_{name}.csv"
+        return load_zonal(path) if path.exists() else None
+
+    a_base, b_base = zonal(first, "baseline"), zonal(second, "baseline")
+    if a_base is None or b_base is None:
+        raise FileNotFoundError("both studies need results/zonal_baseline.csv")
+    baseline = compare(a_base, b_base, "T2").rename(columns={
+        "T2_a": "first_K", "T2_b": "second_K", "delta_T2": "second_minus_first_K"})
+    baseline.to_csv(out / "baseline_year_on_year.csv", index=False)
+
+    a_scen, b_scen = zonal(first, "scenario"), zonal(second, "scenario")
+    effects = None
+    if a_scen is not None and b_scen is not None:
+        def effect(base, scen):
+            return compare(base, scen, "T2")[["LCZ", "date", "hour", "delta_T2"]]
+        effects = effect(a_base, a_scen).merge(
+            effect(b_base, b_scen), on=["LCZ", "date", "hour"],
+            suffixes=("_first", "_second"))
+        effects["second_minus_first_K"] = (
+            effects["delta_T2_second"] - effects["delta_T2_first"])
+        effects = effects.rename(columns={"delta_T2_first": "first_effect_K",
+                                          "delta_T2_second": "second_effect_K"})
+        effects.to_csv(out / "effect_year_on_year.csv", index=False)
+
+    def mean(df, column):
+        return float(df[column].mean()) if len(df) else None
+
+    def start(results: Path):
+        request = results.parent / "baseline" / "request.json"
+        return json.loads(request.read_text()).get("start") if request.exists() else None
+
+    summary = {
+        "first": str(first), "second": str(second),
+        "first_start": start(first), "second_start": start(second),
+        "baseline_mean_delta_K": mean(baseline, "second_minus_first_K"),
+        "baseline_pairs": int(len(baseline)),
+    }
+    if effects is not None:
+        summary.update({
+            "effect_first_mean_K": mean(effects, "first_effect_K"),
+            "effect_second_mean_K": mean(effects, "second_effect_K"),
+            "effect_change_mean_K": mean(effects, "second_minus_first_K"),
+            "effect_pairs": int(len(effects)),
+        })
+    (out / "years.json").write_text(json.dumps(summary, indent=2))
+    print(f"year comparison exported -> {out}")
     return out

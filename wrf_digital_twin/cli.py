@@ -30,8 +30,21 @@ def build_parser():
     r = sub.add_parser("run", help="prepare, baseline, scenario, compare")
     r.add_argument("request")
     r.add_argument("proposal")
-    r.add_argument("--root", default=str(Path(os.environ.get(
-        "WRF_TWIN_ROOT", Path(__file__).resolve().parents[1])) / "output"))
+    default_root = str(Path(os.environ.get(
+        "WRF_TWIN_ROOT", Path(__file__).resolve().parents[1])) / "output")
+    r.add_argument("--root", default=default_root)
+    p_report = sub.add_parser("report", help="render comparison and validation reports")
+    p_report.add_argument("results", help="a study's results directory")
+    p_report.add_argument("--out", help="output directory (default: results)")
+    y = sub.add_parser("compare-years", help="compare two completed studies' results")
+    y.add_argument("first", help="first study's results directory")
+    y.add_argument("second", help="second study's results directory")
+    y.add_argument("--out", required=True)
+    yr = sub.add_parser("run-years", help="run two requests and compare them")
+    yr.add_argument("first_request")
+    yr.add_argument("second_request")
+    yr.add_argument("proposal")
+    yr.add_argument("--root", default=default_root)
     return p
 
 
@@ -47,13 +60,22 @@ def main(argv=None):
         engine.compare_cases(Path(args.baseline), Path(args.scenario), Path(args.out))
     elif args.cmd == "run":
         req = engine.CaseRequest(**load(args.request))
-        name = f"twin_{req.lat:.4f}_{req.lon:.4f}_{req.start_dt:%Y%m%dT%H}"
-        root = Path(args.root) / name
-        base = engine.prepare_case(req, root / "baseline")
-        engine.run_baseline(base)
-        cf = engine.apply_scenario(base, load(args.proposal), root / "scenario")
-        engine.compare_cases(base, cf, root / "results")
-        print(f"digital-twin run complete -> {root}")
+        study = engine.run_study(req, load(args.proposal), Path(args.root))
+        print(f"digital-twin run complete -> {study}")
+    elif args.cmd == "report":
+        print(engine.write_comparison_report(
+            Path(args.results), Path(args.out) if args.out else None))
+    elif args.cmd == "compare-years":
+        engine.compare_years(Path(args.first), Path(args.second), Path(args.out))
+    elif args.cmd == "run-years":
+        first = engine.CaseRequest(**load(args.first_request))
+        second = engine.CaseRequest(**load(args.second_request))
+        proposal = load(args.proposal)
+        root = Path(args.root)
+        a = engine.run_study(first, proposal, root)
+        b = engine.run_study(second, proposal, root)
+        engine.compare_years(a / "results", b / "results", root / "years")
+        print(f"two-year digital-twin run complete -> {root / 'years'}")
 
 
 if __name__ == "__main__":

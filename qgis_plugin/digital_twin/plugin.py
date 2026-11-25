@@ -1,6 +1,7 @@
 """Thin QGIS front-end for the headless weather digital-twin engine."""
 import json
 import math
+from datetime import datetime
 from pathlib import Path
 
 from qgis.core import (QgsCoordinateReferenceSystem, QgsCoordinateTransform,
@@ -71,6 +72,7 @@ class TwinDialog(QDialog):
         self.lon.setValue(9.16646)
         self.radius = QDoubleSpinBox(); self.radius.setRange(5, 200); self.radius.setValue(50)
         self.start = QLineEdit("2022-07-25T00:00:00Z")
+        self.start2 = QLineEdit("2023-07-25T00:00:00Z")
         self.hours = QSpinBox(); self.hours.setRange(1, 48); self.hours.setValue(18)
         self.lcz = QLineEdit(str(Path(DEFAULT_ROOT) / "data/raw/lcz_europe_4326.tif"))
         self.from_cat = QSpinBox(); self.from_cat.setRange(1, 21); self.from_cat.setValue(13)
@@ -84,6 +86,7 @@ class TwinDialog(QDialog):
         form.addRow("Longitude", self.lon)
         form.addRow("Radius (km)", self.radius)
         form.addRow("Start (UTC ISO)", self.start)
+        form.addRow("Second start (UTC ISO)", self.start2)
         form.addRow("Hours", self.hours)
         form.addRow("LCZ GeoTIFF (optional)", self.lcz)
         form.addRow("From land-use class", self.from_cat)
@@ -96,10 +99,12 @@ class TwinDialog(QDialog):
         baseline.clicked.connect(self.generate)
         scenario = QPushButton("2. Apply proposal + compare")
         scenario.clicked.connect(self.apply)
-        load = QPushButton("3. Load results into QGIS")
+        years = QPushButton("3. Compare years")
+        years.clicked.connect(self.compare_years)
+        load = QPushButton("4. Load results into QGIS")
         load.clicked.connect(self.load_results)
         btns = QHBoxLayout()
-        for b in (brush, baseline, scenario, load):
+        for b in (brush, baseline, scenario, years, load):
             btns.addWidget(b)
 
         layout = QVBoxLayout()
@@ -164,6 +169,25 @@ class TwinDialog(QDialog):
                   " /work/output/twin_proposal.json --out /work/output/twin_scenario &&"
                   " python scripts/twin.py compare /work/output/twin_baseline"
                   " /work/output/twin_scenario --out /work/output/twin_results'")
+
+    def compare_years(self):
+        req = {
+            "lat": self.lat.value(), "lon": self.lon.value(),
+            "radius_km": self.radius.value(), "start": self.start2.text(),
+            "hours": self.hours.value(),
+        }
+        if self.lcz.text().strip():
+            req["lcz_tif"] = self.lcz.text().strip()
+        self._write("twin_request_2.json", req)
+        if not (Path(self.root.text()) / "output/twin_proposal.json").exists():
+            self.log.appendPlainText("run step 2 first (proposal not written)")
+            return
+        when = datetime.fromisoformat(req["start"].replace("Z", "+00:00"))
+        study = f"twin_{req['lat']:.4f}_{req['lon']:.4f}_{when:%Y%m%dT%H}"
+        self._run("./run.sh run 'python scripts/twin.py run"
+                  " /work/output/twin_request_2.json /work/output/twin_proposal.json &&"
+                  " python scripts/twin.py compare-years /work/output/twin_results"
+                  f" /work/output/{study}/results --out /work/output/years'")
 
     def load_results(self):
         base = Path(self.root.text()) / "output/twin_results"

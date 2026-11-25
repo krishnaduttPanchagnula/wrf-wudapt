@@ -28,7 +28,9 @@ checked out. The weather model itself is already prepared inside a container.
 5. Choose which land-use class to replace (13 = built-up area) and what to put
    in its place (10 = grassland), then click **2. Proposal + compare**.
 6. The app writes maps and CSV tables into the output folder. Open
-   `output/results/REPORT.md` to see the numbers that go with them.
+   `output/results/REPORT.md` for the numbers, or
+   `output/results/base_proposal_difference.html` for a base / proposal /
+   difference table hour by hour.
 
 If you use **QGIS**, install the plugin from `qgis_plugin/` instead: it gives
 you a brush to draw the proposal area directly on the map. See
@@ -61,6 +63,7 @@ The mockup below shows the layout — it is a guide, not a screenshot:
 │  Longitude             [9.16646         ]                │
 │  Radius (km)           [25              ]                │
 │  Start (UTC)           [2022-07-25T00:00:00Z]            │
+│  Second start (UTC)    [2023-07-25T00:00:00Z]            │
 │  Hours (multiple of 6) [6               ]                │
 │  Replace land-use class [13 (built-up)  ]                │
 │  With land-use class    [10 (grassland) ]                │
@@ -68,6 +71,7 @@ The mockup below shows the layout — it is a guide, not a screenshot:
 │  Output folder          [output         ]    [Browse]    │
 │                                                          │
 │  [ Run full study ] [ 1. Baseline ] [ 2. Proposal+compare ]│
+│  [ 3. Compare years ]                                     │
 │                                                          │
 │  Engine output                                           │
 │  ┌────────────────────────────────────────────────────┐  │
@@ -102,10 +106,12 @@ as the desktop app, plus a **Brush: pick area on map** button:
 │  │ Weather Digital Twin                    │            │
 │  │ Latitude  [45.4937] Longitude [9.16646] │            │
 │  │ Radius    [10 km]  Start [2022-07-25Z]  │            │
+│  │ Second year [2023-07-25Z]               │            │
 │  │ From class [13] → To [10] Fraction [0.8]│            │
 │  │ [Brush: pick area on map]               │            │
 │  │ [1. Generate baseline] [2. Apply+compare]│           │
-│  │ [3. Load results into QGIS]             │            │
+│  │ [3. Compare years]                      │            │
+│  │ [4. Load results into QGIS]             │            │
 │  └──────────────────────────────────────────┘            │
 └───────────────┴──────────────────────────────────────────┘
 ```
@@ -187,6 +193,37 @@ request/proposal forms, result layers). See `qgis_plugin/README.md`.
   /work/config/twin_proposal.example.json'
 ```
 
+**Second-year comparison.** Run the same centre, radius and proposal with a
+second start date, then compare the two result sets. This costs another full
+WRF run, so the comparison can be done later from cached results:
+
+```bash
+./run.sh run 'python scripts/twin.py run-years \
+  /work/config/twin_request.example.json /work/config/twin_request_2.example.json \
+  /work/config/twin_proposal.example.json'
+
+# after running the second year on its own instead:
+./run.sh run 'python scripts/twin.py compare-years \
+  /work/output/twin_45.4937_9.1665_20220725T00/results \
+  /work/output/twin_45.4937_9.1665_20230725T00/results \
+  --out /work/output/years'
+```
+
+`base_proposal_difference.html` is written by every `compare` run (and can be
+regenerated with `wrf-twin report <results-dir>`). It shows base, proposal and
+difference side by side for each LCZ and hour; validation metrics are embedded
+when `results.json` has them, otherwise the page says so instead of presenting
+an unchecked result. The same run writes `VALIDATION.md`: bias/MAE/RMSE for the
+full and held-out windows, emulator skill and provenance hashes, or an explicit
+"not validated" note when `results.json` is absent.
+
+`output/years/baseline_year_on_year.csv` is the weather difference between
+years (LCZ × calendar day × hour). `effect_year_on_year.csv`, written when both
+years have a counterfactual, is the *change in cooling effect* (scenario −
+baseline) — that is the number to use for a claim about the proposal, not the
+baseline difference. `years.json` records both start dates. The desktop app
+and QGIS plugin have a **Compare years** button for the same workflow.
+
 Hours must be a multiple of 6 (GFS boundary data is 6-hourly). Each proposal
 costs one full WRF run; the engine reuses the shared `src/WPS` and `src/WRF/run`
 directories, so a running experiment should be finished before starting a twin
@@ -219,7 +256,8 @@ Before the first tag, configure a trusted publisher on PyPI for this repository
 - [x] Emulator with LCZ- and time-blocked validation, prediction intervals, support checks
 - [x] Digital-twin engine, desktop app, QGIS plugin and icons (GUI smoke-tested; QGIS UI untested here)
 - [x] PyPI/GitHub release workflows
-- [ ] Second-year comparison — compute/time permitting
+- [x] Hourly base / proposal / difference HTML report + `VALIDATION.md` artefact
+- [x] Second-year comparison — engine, CLI, desktop app and QGIS button; second-year WRF run not executed here (compute/time)
 
 Results: `output/results/REPORT.md`, `results.json`, `zonal_*.csv`, `compare_lu80.csv`.
 ERA5 point validation: bias -2.46 K, RMSE 3.12 K (n=19; held-out 12–18Z RMSE 3.44 K).

@@ -1,9 +1,14 @@
 """Fast, WRF-free checks for the installable engine."""
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from wrf_digital_twin.engine import CaseRequest, build_namelists
+import pandas as pd
+
+from wrf_digital_twin.engine import (CaseRequest, build_namelists, compare_years,
+                                     study_name, write_comparison_report,
+                                     write_validation_report)
 
 
 class TestRequest(unittest.TestCase):
@@ -30,6 +35,95 @@ class TestRequest(unittest.TestCase):
             self.assertIn("start_day = 25, 25,", wrf)
             self.assertIn("end_hour = 6, 6,", wrf)
             self.assertIn("i_parent_start = 1, 11,", wrf)
+
+    def test_study_name_is_stable(self):
+        req = CaseRequest(45.4937, 9.16646, 25, "2023-07-25T00:00:00Z", 6)
+        self.assertEqual(study_name(req), "twin_45.4937_9.1665_20230725T00")
+
+
+class TestYearComparison(unittest.TestCase):
+    @staticmethod
+    def study(root, name, base_t, scenario_t, start):
+        results = root / name / "results"
+        results.mkdir(parents=True)
+        case = root / name / "baseline"
+        case.mkdir(parents=True)
+        (case / "request.json").write_text(json.dumps({"start": start}))
+        times = pd.date_range("2022-07-25", periods=6, freq="h", tz="UTC")
+        for label, temp in (("baseline", base_t), ("scenario", scenario_t)):
+            pd.DataFrame({"time": times, "domain": [2] * 6, "LCZ": [1, 2] * 3,
+                          "T2": [temp] * 6}).to_csv(
+                results / f"zonal_{label}.csv", index=False)
+        return results
+
+    def test_compares_effects_not_just_temperature(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            a = self.study(root, "y1", 300.0, 299.5, "2022-07-25T00:00:00Z")
+            b = self.study(root, "y2", 302.0, 301.0, "2023-07-25T00:00:00Z")
+            out = compare_years(a, b, root / "years")
+
+            baseline = pd.read_csv(out / "baseline_year_on_year.csv")
+            effects = pd.read_csv(out / "effect_year_on_year.csv")
+            summary = json.loads((out / "years.json").read_text())
+            self.assertEqual(len(baseline), 6)
+            self.assertTrue((baseline["second_minus_first_K"] == 2.0).all())
+            self.assertEqual(len(effects), 6)
+            self.assertTrue((effects["first_effect_K"] == -0.5).all())
+            self.assertTrue((effects["second_effect_K"] == -1.0).all())
+            self.assertTrue((effects["second_minus_first_K"] == -0.5).all())
+            self.assertEqual(summary["first_start"], "2022-07-25T00:00:00Z")
+            self.assertEqual(summary["second_start"], "2023-07-25T00:00:00Z")
+            self.assertAlmostEqual(summary["effect_change_mean_K"], -0.5)
+
+    def test_side_by_side_report_shows_three_columns_and_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            results = TestYearComparison.study(root, "y1", 300.0, 299.5,
+                                               "2022-07-25T00:00:00Z")
+            page = write_comparison_report(results)
+            text = page.read_text()
+            for heading in ("Base (K)", "Proposal (K)", "Difference (K)"):
+                self.assertIn(heading, text)
+            self.assertIn("299.5", text)
+            self.assertIn("-0.5", text)
+            self.assertIn("No validation metrics found", text)
+
+            (results / "results.json").write_text(json.dumps({"validation": {
+                "source": "ERA5 test", "full": {"n": 2, "bias": -1.0, "rmse": 2.0},
+                "held_out_12_18Z": {"rmse": 3.0}}}))
+            text = write_comparison_report(results).read_text()
+            self.assertIn("ERA5 test", text)
+            self.assertIn("held-out RMSE 3.0 K", text)
+            self.assertNotIn("No validation metrics found", text)
+
+    def test_validation_report_uses_only_recorded_metrics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            results = TestYearComparison.study(root, "y1", 300.0, 299.5,
+                                               "2022-07-25T00:00:00Z")
+            doc = write_validation_report(results)
+            self.assertIn("No validation metrics found", doc.read_text())
+
+            (results / "results.json").write_text(json.dumps({"validation": {
+                "source": "ERA5 test", "full": {"n": 2, "bias": -1.0, "mae": 0.5,
+                                               "rmse": 2.0},
+                "held_out_12_18Z": {"n": 1, "bias": -2.0, "mae": 0.7, "rmse": 3.0}}}))
+            text = write_validation_report(results).read_text()
+            self.assertIn("ERA5 test", text)
+            self.assertIn("| Full | 2 | -1.000 | 0.500 | 2.000 |", text)
+            self.assertIn("Held out 12–18Z", text)
+
+    def test_baseline_only_studies_still_compare(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            a = self.study(root, "y1", 300.0, 299.5, "2022-07-25T00:00:00Z")
+            b = self.study(root, "y2", 302.0, 301.0, "2023-07-25T00:00:00Z")
+            for results in (a, b):
+                (results / "zonal_scenario.csv").unlink()
+            out = compare_years(a, b, root / "years")
+            self.assertFalse((out / "effect_year_on_year.csv").exists())
+            self.assertNotIn("effect_pairs", json.loads((out / "years.json").read_text()))
 
 
 if __name__ == "__main__":

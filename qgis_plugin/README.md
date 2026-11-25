@@ -26,8 +26,14 @@ already built). Set **Project root** in the dialog to that directory.
    convert to (default 10 = grassland), plus the fraction replaced.
    **Apply proposal + compare** re-runs WRF from the perturbed initial state
    and writes the comparison tables.
-4. **Load results into QGIS** adds `delta_t2_points.csv` (ΔT2 at each grid
-   cell) and `delta_by_landuse.csv` as layers.
+4. Enter a **Second start** date and click **Compare years** to run the same
+   proposal in the second year and write `output/years/`. This costs one more
+   full WRF run; you can run the second year later and only then compare.
+5. **Load results into QGIS** adds `delta_t2_points.csv` (ΔT2 at each grid
+   cell) and `delta_by_landuse.csv` as layers. The same results folder also
+   contains `base_proposal_difference.html`: base, proposal and ΔT2 side by
+   side for each LCZ and hour, with validation metrics when available, and
+   `VALIDATION.md` with the full/held-out scores and provenance.
 
 Outputs are under `<project root>/output/twin_<lat>_<lon>_<date>/` when using
 the CLI `run` command, or `output/twin_baseline`, `output/twin_scenario` and
@@ -46,7 +52,10 @@ the CLI `run` command, or `output/twin_baseline`, `output/twin_scenario` and
 "from_cat":13,"to_cat":10,"fraction":0.8}`
 
 `python scripts/twin.py --help` lists the individual `prepare`, `baseline`,
-`scenario` and `compare` steps.
+`scenario` and `compare` steps, plus `run-years` (two requests) and
+`compare-years` (two existing results dirs, no WRF). The latter writes
+`baseline_year_on_year.csv`, optionally `effect_year_on_year.csv` (change in
+cooling, not just weather) and `years.json` with both start dates.
 
 ## Limits (current framework)
 

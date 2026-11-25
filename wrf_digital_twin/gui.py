@@ -10,7 +10,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import __version__
+from . import __version__, engine
 
 ICON = Path(__file__).parent / "icons" / "app.png"
 
@@ -44,6 +44,7 @@ class App(ttk.Frame):
             ("Longitude", "9.16646", "lon", False),
             ("Radius (km)", "25", "radius", False),
             ("Start (UTC)", "2022-07-25T00:00:00Z", "start", False),
+            ("Second start (UTC)", "2023-07-25T00:00:00Z", "start2", False),
             ("Hours (multiple of 6)", "6", "hours", False),
             ("Replace land-use class", "13", "from_cat", False),
             ("With land-use class", "10", "to_cat", False),
@@ -65,7 +66,8 @@ class App(ttk.Frame):
         self.b_full = ttk.Button(btns, text="Run full study", command=self.full)
         self.b_base = ttk.Button(btns, text="1. Baseline", command=self.baseline)
         self.b_prop = ttk.Button(btns, text="2. Proposal + compare", command=self.proposal)
-        for b in (self.b_full, self.b_base, self.b_prop):
+        self.b_years = ttk.Button(btns, text="3. Compare years", command=self.years)
+        for b in (self.b_full, self.b_base, self.b_prop, self.b_years):
             b.pack(side="left", padx=4)
 
         self.log = tk.Text(self, height=16, wrap="word")
@@ -148,7 +150,7 @@ class App(ttk.Frame):
     def set_busy(self, value):
         self.busy = value
         state = "disabled" if value else "normal"
-        for b in (self.b_full, self.b_base, self.b_prop):
+        for b in (self.b_full, self.b_base, self.b_prop, self.b_years):
             b.config(state=state)
 
     def step(self, *args):
@@ -190,6 +192,26 @@ class App(ttk.Frame):
         self.start_job([self.step("scenario", case, prop, "--out", out / "scenario"),
                         self.step("compare", case, out / "scenario", "--out", out / "results")],
                        root)
+
+    def years(self):
+        try:
+            root, out = self.paths()
+        except ValueError as e:
+            messagebox.showerror("Setup", str(e))
+            return
+        first = self.request()
+        second = {**first, "start": self.fields["start2"].get()}
+        first_results = out / engine.study_name(engine.CaseRequest(**first)) / "results"
+        if not (first_results / "zonal_baseline.csv").exists():
+            messagebox.showerror("Setup", f"no first-year results at {first_results}; "
+                                          "run a full study first")
+            return
+        req2 = self.write(out, "twin_request_2.json", second)
+        prop = self.write(out, "twin_proposal.json", self.proposal_json())
+        second_results = out / engine.study_name(engine.CaseRequest(**second)) / "results"
+        self.start_job([self.step("run", req2, prop, "--root", out),
+                        self.step("compare-years", first_results, second_results,
+                                  "--out", out / "years")], root)
 
 
 def main():
