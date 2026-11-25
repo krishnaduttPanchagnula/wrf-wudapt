@@ -1,4 +1,4 @@
-name: release
+name: GitHub release
 
 on:
   push:
@@ -13,27 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Install build tooling
-        run: python -m pip install -e .[test]
-      - name: Test before release
-        run: python -m unittest tests.test_engine -v
-      - name: Build sdist and wheel
-        run: python -m build
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/*
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          fetch-depth: 0
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
           generate_release_notes: true

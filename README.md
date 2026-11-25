@@ -133,10 +133,13 @@ wrf-twin-gui                     # desktop app
 wrf-twin --help                  # command line
 ```
 
-To publish a release: add a GitHub secret `PYPI_API_TOKEN`, then push a tag
-such as `v0.1.0`. `.github/workflows/test.yml` runs the engine checks on Python
-3.10–3.12; `.github/workflows/release.yml` builds the wheel/sdist, publishes to
-PyPI and creates a GitHub release with the same files attached.
+To publish: push a tag such as `v0.1.0`. `.github/workflows/release.yml`
+creates the GitHub release, and `.github/workflows/publish.yml` then builds the
+wheel/sdist and publishes it to PyPI with trusted publishing (no API token
+stored). `.github/workflows/test.yml` runs engine checks on Python 3.10–3.12.
+
+Before the first tag, configure a trusted publisher on PyPI for this repository
+(owner `krishnaduttPanchagnula`, repo `wrf-wudapt`, workflow `publish.yml`).
 
 ## Status
 
