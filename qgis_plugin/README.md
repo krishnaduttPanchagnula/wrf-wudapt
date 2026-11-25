@@ -29,8 +29,8 @@ already built). Set **Project root** in the dialog to that directory.
 4. Enter a **Second start** date and click **Compare years** to run the same
    proposal in the second year and write `output/years/`. This costs one more
    full WRF run; you can run the second year later and only then compare.
-5. **Load results into QGIS** adds `delta_t2_points.csv` (ΔT2 at each grid
-   cell) and `delta_by_landuse.csv` as layers. The same results folder also
+5. **Load results into QGIS** adds three side-by-side layers — base T2,
+   proposal T2 and ΔT2 per grid cell — plus `delta_by_landuse.csv`. The same results folder also
    contains `base_proposal_difference.html`: base, proposal and ΔT2 side by
    side for each LCZ and hour, with validation metrics when available, and
    `VALIDATION.md` with the full/held-out scores and provenance.

@@ -47,7 +47,7 @@ Evidence is labelled where it comes from a competitor page; feasibility is a one
 
 2. ~~**Base / proposal / difference side-by-side view, hour by hour**~~ — **implemented 2026-11-25** as `base_proposal_difference.html`, written by every `compare` run and regenerable with `wrf-twin report`.
    Evidence: infrared "Compare the scenarios side by side, for the entire city" and "A district twin: the base, a cooling design and the difference, hour by hour" (`products-live.md`).
-   Remaining: map-layer (not just table) side-by-side and an hour-by-hour slider in QGIS; the HTML page covers the numbers.
+   Remaining: an hour slider in QGIS; base/proposal/ΔT2 are now three loadable point layers as well as the HTML table.
 
 3. ~~**Difference-of-differences reporting across periods**~~ — also implemented as `effect_year_on_year.csv` (scenario − baseline per year, then year 2 − year 1).
    Evidence: natural extension of gap 1; no competitor page checked states this explicitly, so this is an *inferred* differentiator rather than a competitor feature. Remaining: an uncertainty note on the difference-of-differences, since each year has its own model error.

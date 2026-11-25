@@ -191,16 +191,18 @@ class TwinDialog(QDialog):
 
     def load_results(self):
         base = Path(self.root.text()) / "output/twin_results"
-        for name, title in [("delta_t2_points.csv", "ΔT2 per grid cell (K)"),
+        for name, title in [("t2_baseline_points.csv", "Base T2 per grid cell (K)"),
+                            ("t2_scenario_points.csv", "Proposal T2 per grid cell (K)"),
+                            ("delta_t2_points.csv", "ΔT2 per grid cell (K)"),
                             ("delta_by_landuse.csv", "ΔT2 by land-use class")]:
             path = base / name
             if not path.exists():
                 self.log.appendPlainText(f"missing {path}")
                 continue
-            layer = QgsVectorLayer(
-                f"file:///{path}?type=csv&detectTypes=yes&xField=lon&yField=lat"
-                if name == "delta_t2_points.csv" else f"file:///{path}?type=csv&detectTypes=yes",
-                title, "delimitedtext")
+            uri = f"file:///{path}?type=csv&detectTypes=yes"
+            if name.endswith("points.csv"):
+                uri += "&xField=lon&yField=lat"
+            layer = QgsVectorLayer(uri, title, "delimitedtext")
             if layer.isValid():
                 QgsProject.instance().addMapLayer(layer)
             else:

@@ -390,9 +390,14 @@ def compare_cases(baseline: Path, scenario: Path, out: Path) -> Path:
         lat = da["XLAT"].isel(Time=0).values
         lon = da["XLONG"].isel(Time=0).values
         d = (db["T2"] - da["T2"]).mean("Time").values
+        ta = da["T2"].mean("Time").values
+        tb = db["T2"].mean("Time").values
     points = pd.DataFrame({"lat": lat.ravel(), "lon": lon.ravel(),
                            "delta_T2_K": d.ravel()})
     points.to_csv(out / "delta_t2_points.csv", index=False)
+    for name, field in (("t2_baseline_points.csv", ta), ("t2_scenario_points.csv", tb)):
+        pd.DataFrame({"lat": lat.ravel(), "lon": lon.ravel(),
+                      "T2_K": field.ravel()}).to_csv(out / name, index=False)
     (out / "summary.json").write_text(json.dumps({
         "baseline": str(baseline), "scenario": str(scenario),
         "mean_delta_T2_K": float(np.nanmean(d)),
