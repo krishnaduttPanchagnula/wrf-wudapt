@@ -47,6 +47,74 @@ onwards; the LCZ map covers Europe only; each proposal is a full new weather
 simulation; and the accuracy check uses ERA5 reanalysis, not a real weather
 station. Keep the report next to any map you share.
 
+## What the desktop app looks like
+
+`wrf-twin-gui` opens a small window (icon: ![app icon](wrf_digital_twin/icons/app.png)).
+The mockup below shows the layout — it is a guide, not a screenshot:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Weather Digital Twin 0.1.0                    _  □  ×  │
+├──────────────────────────────────────────────────────────┤
+│  Project folder        [/home/you/wrf-wudapt]  [Browse]  │
+│  Latitude              [45.4937         ]                │
+│  Longitude             [9.16646         ]                │
+│  Radius (km)           [25              ]                │
+│  Start (UTC)           [2022-07-25T00:00:00Z]            │
+│  Hours (multiple of 6) [6               ]                │
+│  Replace land-use class [13 (built-up)  ]                │
+│  With land-use class    [10 (grassland) ]                │
+│  Fraction replaced      [0.8            ]                │
+│  Output folder          [output         ]    [Browse]    │
+│                                                          │
+│  [ Run full study ] [ 1. Baseline ] [ 2. Proposal+compare ]│
+│                                                          │
+│  Engine output                                           │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ $ python -m wrf_digital_twin.cli prepare ...       │  │
+│  │ prepared /home/you/wrf-wudapt/output/baseline      │  │
+│  │ --- done ---                                        │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
+
+The log pane fills while the weather model runs; buttons are disabled until it
+finishes. Results are written to the output folder, not displayed inside the
+window — open `output/results/REPORT.md` for the numbers and load the CSVs into
+QGIS or a spreadsheet.
+
+## What the QGIS plugin looks like
+
+The plugin adds a toolbar button (icon: ![plugin icon](qgis_plugin/digital_twin/icon.png))
+called **Weather Digital Twin**. Clicking it opens a panel with the same fields
+as the desktop app, plus a **Brush: pick area on map** button:
+
+```
+┌──────────────────────── QGIS ────────────────────────────┐
+│ [🌐 Weather Digital Twin]  [other tools...]             │
+├───────────────┬──────────────────────────────────────────┤
+│ Layers        │  Map canvas                              │
+│ • ΔT2 points  │      ╭──────────╮                        │
+│ • ΔT2 by class│      │  ● MILAN │  ← red circle =        │
+│ • LCZ map     │      ╰──────────╯    selected proposal   │
+│               │                                          │
+│  ┌──────────────────────────────────────────┐            │
+│  │ Weather Digital Twin                    │            │
+│  │ Latitude  [45.4937] Longitude [9.16646] │            │
+│  │ Radius    [10 km]  Start [2022-07-25Z]  │            │
+│  │ From class [13] → To [10] Fraction [0.8]│            │
+│  │ [Brush: pick area on map]               │            │
+│  │ [1. Generate baseline] [2. Apply+compare]│           │
+│  │ [3. Load results into QGIS]             │            │
+│  └──────────────────────────────────────────┘            │
+└───────────────┴──────────────────────────────────────────┘
+```
+
+After step 3, the `ΔT2 per grid cell` layer appears on the map (negative values
+= cooling) and the `ΔT2 by land-use class` table can be opened from the Layers
+panel. The brush circle is drawn from the radius field; clicking elsewhere on
+the map moves the proposal centre.
+
 ## Technical details
 
 This is a rebuild of *Urban Climate Modelling Using WRF and WUDAPT Model: A
