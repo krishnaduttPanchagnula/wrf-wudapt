@@ -285,4 +285,9 @@ Built LCZ response to the land-use intervention: mean ΔT2 -0.093 K (5 of 6 clas
 Finding: perturbing `LAI` in `wrfinput` had **zero** effect on T2 — Noah recomputes
 LAI from land cover. The effective intervention is `LANDUSEF`, which WRF actually uses.
 
-See `CONSTRAINTS.md` for the quality bar that must not be lowered.
+Remaining limits after the competitor feature pass: hosted/on-demand runs need
+a deployed authenticated service (no endpoint was added); PET needs a
+physiological model; AR6/SSP runs use user-supplied PGW offsets, not bundled
+CMIP6 ensembles; validation is ERA5 reanalysis, not station observations.
+See `competitor-profiles/_summary.md` for sources and `CONSTRAINTS.md` for the
+quality bar that must not be lowered.

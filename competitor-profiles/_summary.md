@@ -108,6 +108,18 @@ Evidence is labelled where it comes from a competitor page; feasibility is a one
 
 ---
 
+## Remaining blockers — not achievable in this repository alone
+
+These are deliberately left open rather than stubbed:
+
+- **Hosted/on-demand compute** — UrbSim and infrared run simulations remotely. A local, authenticated job service with a queue and storage would need deployment design; an unauthenticated HTTP endpoint would be a security risk, so none was added.
+- **PET** — needs a physiological reference model and validation series. UTCI is implemented from the official polynomial; PET is not approximated with an unrelated formula.
+- **Full AR6/SSP ensembles** — the engine now accepts user-supplied PGW temperature offsets with provenance, but no CMIP6 data or ensemble is bundled. A temperature offset is not a full climate scenario.
+- **Station observations** — validation remains ERA5 reanalysis; no independent station series is among the inputs.
+- **QGIS hour slider / web tiles** — the HTML table and three point layers cover side-by-side inspection; temporal animation and tile serving need a front-end/deployment decision.
+
+---
+
 ## Source inventory
 
 Retrieved **2026-11-25**; raw markdown in `competitor-profiles/raw/<slug>/2026-11-25/scrapes/`:
