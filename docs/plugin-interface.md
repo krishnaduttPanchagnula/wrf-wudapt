@@ -24,6 +24,8 @@ run_study(request, proposal, root) -> study_dir      # the four steps above
 compare_years(first_results, second_results, out_dir) # LCZ/hour tables + years.json
 write_comparison_report(results_dir, out_dir=None) -> html_path
 write_validation_report(results_dir, out_dir=None) -> md_path
+warm_case(case_dir, out_dir, delta_t_k) -> out_dir      # PGW initial/boundary T offset
+apply_future_climate(case_dir, scenario, out_dir) -> out_dir
 ```
 
 `study_dir = root / twin_<lat>_<lon>_<start>`; its `results/` is what
@@ -34,11 +36,14 @@ year so weather differences are not read as intervention effects.
 
 `scripts/twin.py` exposes each step, a `run` command that chains them,
 `run-years` (two requests + one proposal), `compare-years` (two existing
-result sets, no WRF) and `report` (re-render the side-by-side page and `VALIDATION.md`).
+result sets, no WRF), `future` (PGW-warmed case from a supplied `delta_T_K`)
+and `report` (re-render the side-by-side page, `VALIDATION.md` and GeoTIFF).
 `compare-years` makes a second-year analysis possible when only one extra
 study can be afforded. `compare` writes `base_proposal_difference.html` with
 base / proposal / ΔT2 per LCZ and hour, plus validation metrics from
-`results.json` when present.
+`results.json` when present, and `delta_t2.tif` (EPSG:4326). The PGW offset is
+applied to initial and boundary temperature fields and checked for effect;
+no CMIP6 data is bundled.
 `proposal = {"area": {"lat", "lon", "radius_km"}, "from_cat", "to_cat", "fraction"}`.
 The QGIS brush writes `area`; the engine does the physics. Validation metrics
 are produced by `scripts/analyze.py`, not yet by the plugin layer loader.

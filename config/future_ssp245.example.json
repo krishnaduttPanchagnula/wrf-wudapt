@@ -1,0 +1,6 @@
+{
+  "scenario_id": "SSP2-4.5",
+  "delta_T_K": 2.0,
+  "source": "REPLACE with the CMIP6 model/URL the offset came from",
+  "retrieved": "REPLACE with the retrieval date"
+}

@@ -239,6 +239,11 @@ def apply_scenario(case: Path, scenario: dict, out: Path) -> Path:
         idx = modified["LU_INDEX"].values
         idx[:, mask] = lu[:, :, mask].argmax(axis=1) + 1
         modified.to_netcdf(out / "wrfinput_d02")
+    return _run_perturbed(case, out, scenario)
+
+
+def _run_perturbed(case: Path, out: Path, scenario: dict) -> Path:
+    """Link the shared WRF inputs into a perturbed case and run it."""
     for f in case.glob("met_em.d0*.nc"):
         (out / f.name).symlink_to(f.resolve())
     for f in (WRF / "run").iterdir():
@@ -257,11 +262,47 @@ def apply_scenario(case: Path, scenario: dict, out: Path) -> Path:
     return out
 
 
+def warm_case(case: Path, out: Path, delta_t_k: float) -> Path:
+    """Copy a prepared case and add a uniform temperature offset to initial/boundary fields.
+
+    This is a pseudo-global-warming (PGW) perturbation: WRF physics still runs
+    the scenario, so no regression is asked to extrapolate. The offset and its
+    provenance must be supplied by the caller; no CMIP6 data is bundled.
+    """
+    from netCDF4 import Dataset
+
+    delta = float(delta_t_k)
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    shutil.copy(case / "namelist.input", out / "namelist.input")
+    for name in ("wrfinput_d01", "wrfinput_d02", "wrfbdy_d01"):
+        shutil.copy(case / name, out / name)
+        with Dataset(out / name, "a") as ds:
+            variables = [v for v in ds.variables if v == "T" or v.startswith("T_B")]
+            if not variables:
+                raise RuntimeError(f"no temperature field in {name}; cannot verify warming")
+            first = ds.variables[variables[0]]
+            before = float(np.mean(first[:]))
+            for var in variables:
+                ds.variables[var][:] = np.asarray(ds.variables[var][:]) + delta
+            after = float(np.mean(first[:]))
+            if not np.isclose(after - before, delta, atol=1e-3):
+                raise RuntimeError(f"warming did not bite in {name}")
+    return out
+
+
+def apply_future_climate(case: Path, scenario: dict, out: Path) -> Path:
+    """Run WRF with a supplied AR6/SSP temperature offset (PGW-style)."""
+    warm_case(case, out, scenario["delta_T_K"])
+    return _run_perturbed(case, out, scenario)
+
+
 def write_comparison_report(results: Path, out: Path | None = None) -> Path:
     """Write the hourly base / proposal / difference page next to a study's CSVs."""
     import sys
     sys.path.insert(0, str(ROOT / "src"))
-    from compare import load_zonal, side_by_side, side_by_side_html
+    from compare import (export_delta_geotiff, load_zonal, side_by_side,
+                         side_by_side_html)
 
     results = Path(results)
     out = Path(out) if out else results
@@ -272,6 +313,9 @@ def write_comparison_report(results: Path, out: Path | None = None) -> Path:
     validation = json.loads(metrics.read_text()).get("validation") if metrics.exists() else None
     path = out / "base_proposal_difference.html"
     path.write_text(side_by_side_html(side_by_side(a, b), validation))
+    points = results / "delta_t2_points.csv"
+    if points.exists():
+        export_delta_geotiff(pd.read_csv(points), out / "delta_t2.tif")
     write_validation_report(results, out)
     return path
 

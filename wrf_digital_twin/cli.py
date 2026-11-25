@@ -33,6 +33,10 @@ def build_parser():
     default_root = str(Path(os.environ.get(
         "WRF_TWIN_ROOT", Path(__file__).resolve().parents[1])) / "output")
     r.add_argument("--root", default=default_root)
+    f = sub.add_parser("future", help="run a warmed case from a supplied temperature offset")
+    f.add_argument("case")
+    f.add_argument("scenario")
+    f.add_argument("--out", required=True)
     p_report = sub.add_parser("report", help="render comparison and validation reports")
     p_report.add_argument("results", help="a study's results directory")
     p_report.add_argument("--out", help="output directory (default: results)")
@@ -62,6 +66,8 @@ def main(argv=None):
         req = engine.CaseRequest(**load(args.request))
         study = engine.run_study(req, load(args.proposal), Path(args.root))
         print(f"digital-twin run complete -> {study}")
+    elif args.cmd == "future":
+        engine.apply_future_climate(Path(args.case), load(args.scenario), Path(args.out))
     elif args.cmd == "report":
         print(engine.write_comparison_report(
             Path(args.results), Path(args.out) if args.out else None))

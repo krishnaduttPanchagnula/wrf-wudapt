@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from wrf_digital_twin.engine import (CaseRequest, build_namelists, compare_years,
-                                     study_name, write_comparison_report,
+                                     study_name, warm_case, write_comparison_report,
                                      write_validation_report)
 
 
@@ -39,6 +39,14 @@ class TestRequest(unittest.TestCase):
     def test_study_name_is_stable(self):
         req = CaseRequest(45.4937, 9.16646, 25, "2023-07-25T00:00:00Z", 6)
         self.assertEqual(study_name(req), "twin_45.4937_9.1665_20230725T00")
+
+    def test_multi_day_window_is_supported(self):
+        req = CaseRequest(45.4937, 9.16646, 25, "2022-07-25T00:00:00Z", 72)
+        with tempfile.TemporaryDirectory() as tmp:
+            build_namelists(req, Path(tmp))
+            wps = (Path(tmp) / "namelist.wps").read_text()
+            self.assertIn("end_date   = '2022-07-28_00:00:00'", wps)
+            self.assertIn("end_day = 28, 28,", (Path(tmp) / "namelist.input").read_text())
 
 
 class TestYearComparison(unittest.TestCase):
@@ -96,6 +104,42 @@ class TestYearComparison(unittest.TestCase):
             self.assertIn("ERA5 test", text)
             self.assertIn("held-out RMSE 3.0 K", text)
             self.assertNotIn("No validation metrics found", text)
+
+    def test_warm_case_changes_initial_and_boundary_fields(self):
+        from netCDF4 import Dataset
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            case = root / "case"
+            case.mkdir()
+            (case / "namelist.input").write_text("")
+            fields = (("wrfinput_d01", "T"), ("wrfinput_d02", "T"),
+                      ("wrfbdy_d01", "T_BXS"))
+            for name, var in fields:
+                with Dataset(case / name, "w") as ds:
+                    ds.createDimension("Time", 1)
+                    ds.createVariable(var, "f4", ("Time",))[:] = [280.0]
+            out = warm_case(case, root / "warm", 2.0)
+            for name, var in fields:
+                with Dataset(out / name) as ds:
+                    self.assertAlmostEqual(float(ds.variables[var][:].mean()), 282.0)
+
+    def test_geotiff_export_from_delta_points(self):
+        import rasterio
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            results = TestYearComparison.study(root, "y1", 300.0, 299.5,
+                                               "2022-07-25T00:00:00Z")
+            pd.DataFrame({"lat": [45.0, 45.0, 45.1, 45.1],
+                          "lon": [9.0, 9.1, 9.0, 9.1],
+                          "delta_T2_K": [-0.5, -0.4, -0.3, -0.2]}).to_csv(
+                results / "delta_t2_points.csv", index=False)
+            out = write_comparison_report(results)
+            with rasterio.open(out.parent / "delta_t2.tif") as ds:
+                self.assertEqual((ds.width, ds.height), (2, 2))
+                self.assertEqual(ds.crs.to_epsg(), 4326)
+                self.assertAlmostEqual(float(ds.read(1)[0, 0]), -0.5, places=5)
 
     def test_validation_report_uses_only_recorded_metrics(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -10,9 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from digital_twin import (CaseRequest, apply_scenario, compare_cases, compare_years,  # noqa: E402
-                          prepare_case, run_baseline, run_study,
-                          write_comparison_report)
+from digital_twin import (CaseRequest, apply_future_climate, apply_scenario,  # noqa: E402
+                          compare_cases, compare_years, prepare_case, run_baseline,
+                          run_study, write_comparison_report)
 
 
 def load(path: str):
@@ -39,6 +39,10 @@ def main() -> None:
     r.add_argument("request")
     r.add_argument("proposal")
     r.add_argument("--root", default=str(ROOT / "output"))
+    fut = sub.add_parser("future", help="run a warmed case from a supplied temperature offset")
+    fut.add_argument("case")
+    fut.add_argument("scenario")
+    fut.add_argument("--out", required=True)
     rep = sub.add_parser("report", help="render comparison and validation reports")
     rep.add_argument("results", help="a study's results directory")
     rep.add_argument("--out", help="output directory (default: results)")
@@ -65,6 +69,8 @@ def main() -> None:
         study = run_study(CaseRequest(**load(args.request)), load(args.proposal),
                           Path(args.root))
         print(f"digital-twin run complete -> {study}")
+    elif args.cmd == "future":
+        apply_future_climate(Path(args.case), load(args.scenario), Path(args.out))
     elif args.cmd == "report":
         print(write_comparison_report(
             Path(args.results), Path(args.out) if args.out else None))

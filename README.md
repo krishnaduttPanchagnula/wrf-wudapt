@@ -215,7 +215,8 @@ difference side by side for each LCZ and hour; validation metrics are embedded
 when `results.json` has them, otherwise the page says so instead of presenting
 an unchecked result. The same run writes `VALIDATION.md`: bias/MAE/RMSE for the
 full and held-out windows, emulator skill and provenance hashes, or an explicit
-"not validated" note when `results.json` is absent.
+"not validated" note when `results.json` is absent. It also exports
+`delta_t2.tif` (EPSG:4326) for QGIS or any GIS that reads GeoTIFF.
 
 `output/years/baseline_year_on_year.csv` is the weather difference between
 years (LCZ × calendar day × hour). `effect_year_on_year.csv`, written when both
@@ -223,6 +224,19 @@ years have a counterfactual, is the *change in cooling effect* (scenario −
 baseline) — that is the number to use for a claim about the proposal, not the
 baseline difference. `years.json` records both start dates. The desktop app
 and QGIS plugin have a **Compare years** button for the same workflow.
+
+**Longer windows.** `hours` can be any multiple of 6, so 72 (three days) or
+168 (a week) works with the same engine; `config/twin_request_multiday.example.json`
+is a 72 h example. Cost and GFS downloads grow with the window — the 18 h case
+is the tested default, not a hard limit.
+
+**Future climate (supplied scenario).** With a CMIP6-derived temperature offset
+you can run a warmed case through the same WRF physics:
+`wrf-twin future <case> config/future_ssp245.example.json --out <dir>`, then
+`wrf-twin compare <case> <dir> --out <results>`. This is a pseudo-global-warming
+perturbation of WRF's initial and boundary temperature fields; the offset and
+its source/retrieval date must be filled in by the user — no CMIP6 data is
+bundled, and a plain temperature offset is not a full AR6 ensemble.
 
 Hours must be a multiple of 6 (GFS boundary data is 6-hourly). Each proposal
 costs one full WRF run; the engine reuses the shared `src/WPS` and `src/WRF/run`

@@ -3,8 +3,10 @@
 This is the function the QGIS plugin would call for its two-year comparison.
 """
 import html
+import math
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -25,6 +27,34 @@ def compare(a: pd.DataFrame, b: pd.DataFrame, var: str = "T2") -> pd.DataFrame:
     m = key(a).merge(key(b), on=["LCZ", "date", "hour"], suffixes=("_a", "_b"))
     m[f"delta_{var}"] = m[f"{var}_b"] - m[f"{var}_a"]
     return m
+
+
+def export_delta_geotiff(points: pd.DataFrame, path: str | Path) -> Path:
+    """Write the mean ΔT2 grid as an EPSG:4326 GeoTIFF for GIS users.
+
+    shortcut: the input CSV is a row-major flatten of a square WRF grid;
+    upgrade to the XLAT/XLONG curvilinear grid when reprojection is needed.
+    """
+    import rasterio
+    from rasterio.transform import from_origin
+
+    n = len(points)
+    side = int(math.isqrt(n))
+    if side * side != n:
+        raise ValueError("delta points must be a square grid")
+    lat = points["lat"].to_numpy().reshape(side, side)
+    lon = points["lon"].to_numpy().reshape(side, side)
+    values = points["delta_T2_K"].to_numpy(dtype=np.float32).reshape(side, side)
+    dx = float(np.mean(np.diff(lon[0])))
+    dy = float(np.mean(np.diff(lat[:, 0])))
+    profile = {"driver": "GTiff", "width": side, "height": side, "count": 1,
+               "dtype": "float32", "crs": "EPSG:4326",
+               "transform": from_origin(lon[0, 0] - dx / 2, lat[0, 0] + dy / 2, dx, dy),
+               "nodata": -9999.0}
+    path = Path(path)
+    with rasterio.open(path, "w", **profile) as dst:
+        dst.write(np.nan_to_num(values, nan=-9999.0), 1)
+    return path
 
 
 def side_by_side(a: pd.DataFrame, b: pd.DataFrame, var: str = "T2") -> pd.DataFrame:
