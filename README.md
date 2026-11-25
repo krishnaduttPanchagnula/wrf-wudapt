@@ -1,0 +1,160 @@
+# Weather Digital Twin (wrf-wudapt)
+
+Imagine you can ask: **"If we replace the concrete in this part of the city with
+grass, how much will the air temperature change?"** This project answers that
+question by running a real weather model twice: once for the city as it is, and
+once with your proposed change. It then gives you maps and tables of the
+difference, so planners and GIS analysts can compare options before building
+anything.
+
+It is a research tool, not a crystal ball. Results depend on the date, weather
+and the changes you choose, and every run takes time (about 1–2 hours for an
+18-hour simulation on a normal laptop).
+
+## Quick start (no programming needed)
+
+You need a Linux computer with **Podman** installed and this project folder
+checked out. The weather model itself is already prepared inside a container.
+
+1. Install the desktop app:
+   ```bash
+   pip install wrf-digital-twin
+   ```
+2. Start it with `wrf-twin-gui` (or run `python -m wrf_digital_twin.gui` from
+   this folder).
+3. Type a latitude, longitude, radius in kilometres, a UTC start date/time and
+   how many hours to simulate (must be 6, 12, 18...).
+4. Click **1. Baseline** to create the "current city" simulation.
+5. Choose which land-use class to replace (13 = built-up area) and what to put
+   in its place (10 = grassland), then click **2. Proposal + compare**.
+6. The app writes maps and CSV tables into the output folder. Open
+   `output/results/REPORT.md` to see the numbers that go with them.
+
+If you use **QGIS**, install the plugin from `qgis_plugin/` instead: it gives
+you a brush to draw the proposal area directly on the map. See
+`qgis_plugin/README.md`.
+
+A `pip`-installed app still needs this project folder (with the prepared WRF
+container and data). Set **Project folder** in the app to that location, or set
+the environment variable `WRF_TWIN_ROOT`.
+
+**What you can change today:** the share of built-up land in a circular area
+(land use class 13 → 10 by default). Other variables need a new intervention in
+the engine.
+
+**Please remember:** the weather data is public GFS archive data from 2021
+onwards; the LCZ map covers Europe only; each proposal is a full new weather
+simulation; and the accuracy check uses ERA5 reanalysis, not a real weather
+station. Keep the report next to any map you share.
+
+## Technical details
+
+This is a rebuild of *Urban Climate Modelling Using WRF and WUDAPT Model: A
+Case of Milan* (Panchagnula Krishna Dutt, Politecnico di Milano, 2020), fixing
+the validity problems found in Chapter 4. Everything runs inside a Podman
+container; the project directory is bind-mounted at `/work`.
+
+## Case definition (changed from the thesis)
+
+- Thesis: 31 Jul – 1 Aug 2020, NCEP FNL 0.25°.
+- Here: **25 Jul 2022, 00–18 UTC** (6 h spin-up, 12 h analysis). Reason: FNL 2020
+  is no longer publicly downloadable without a UCAR/GDEX account; GFS 0.25°
+  `f000` files for 2022 are public on AWS S3 and contain soil fields (`.anl`
+  files do not).
+- `shortcut: 18 h window instead of a full season; upgrade when compute allows.
+  A two-day run here takes ~6 h of wall time at 3 km with BEP.`
+- Domain centre: 45.4937 N, 9.16646 E (Milan). Nested 9 km / 3 km.
+
+## What changes from the thesis
+
+| Thesis (Ch. 4) | Here |
+|---|---|
+| WRF with default land use; BEP selected but no urban parameters | LCZ-derived urban extent injected into `geo_em` via `w2w` (BEP active) |
+| LCZ map used only as a post-hoc averaging mask | LCZ drives the urban extent in WRF *and* the sampling |
+| — | `shortcut: WRF's 41-category LCZ mode needs a source rebuild (`NLUS=61`) and a custom `VEGPARM.TBL`; until then WRF uses default urban morphology. Logged as "USING DEFAULT URBAN MORPHOLOGY" in `wrf.log`.` |
+| "Ground truth" = interpolated Dati Lombardia grid | Independent ERA5 point series (GFS vs ERA5 are different analyses); bias/RMSE reported |
+| Predictors chosen by >80% correlation with the same output | Features chosen physically; circular variables excluded |
+| One run, then ±20/30% LAI into a regression → "cooling" | Counterfactual WRF runs with perturbed land surface |
+| "82% accuracy", undefined | RMSE/MAE/R² on LCZ-blocked folds; prediction intervals |
+| Gaussian-kernel equation labelled KNN, mis-typed | Explicit, tested model with monotonic constraints and support checks |
+
+## Plugin interface (framework built; see `qgis_plugin/`)
+
+A QGIS plugin will let a user enter a date/year, a lat/lon and a radius, run the
+whole engine, and **compare two years**. The engine therefore stays headless
+and importable: `src/` functions take plain config/arrays and return tables.
+A plugin is a thin front-end that orchestrates WRF locally or against a service;
+it cannot run WRF itself.
+
+## Layout
+
+```
+Containerfile, run.sh   container image + build/shell/run helpers
+config/sources.yaml     verified URLs, checksums to be filled, licenses, caveats
+config/namelist.*       corrected WPS/WRF settings
+src/acquire.py          no-credential downloads + sha256 manifest
+src/emulator.py         physics-constrained ML with LCZ-blocked validation
+src/lcz.py, src/wrfio.py, src/pipeline.py   remaining pipeline (in progress)
+tests/                  self-checks
+data/raw|interim|processed, output/
+```
+
+## Workflow
+
+```bash
+./run.sh build                       # build image (once)
+./run.sh run 'python src/acquire.py' # download LCZ, geography, GFS, validation data
+./run.sh shell                       # interactive work inside container
+```
+
+## Weather digital-twin framework
+
+`wrf_digital_twin/engine.py` turns a `(lat, lon, radius, date/time)` request into a WRF
+case and a land-use proposal into a counterfactual run. `scripts/twin.py` is its
+CLI; `qgis_plugin/digital_twin/` is a thin QGIS front-end (brush area selection,
+request/proposal forms, result layers). See `qgis_plugin/README.md`.
+
+```bash
+./run.sh run 'python scripts/twin.py run /work/config/twin_request.example.json \
+  /work/config/twin_proposal.example.json'
+```
+
+Hours must be a multiple of 6 (GFS boundary data is 6-hourly). Each proposal
+costs one full WRF run; the engine reuses the shared `src/WPS` and `src/WRF/run`
+directories, so a running experiment should be finished before starting a twin
+case. Only `LANDUSEF` is editable today; other variables need a new intervention
+in `apply_scenario`. Validation metrics are not yet attached to QGIS layers.
+
+## Installing and releasing the app
+
+```bash
+pip install wrf-digital-twin     # from PyPI
+wrf-twin-gui                     # desktop app
+wrf-twin --help                  # command line
+```
+
+To publish a release: add a GitHub secret `PYPI_API_TOKEN`, then push a tag
+such as `v0.1.0`. `.github/workflows/test.yml` runs the engine checks on Python
+3.10–3.12; `.github/workflows/release.yml` builds the wheel/sdist, publishes to
+PyPI and creates a GitHub release with the same files attached.
+
+## Status
+
+- [x] Container image (Podman), WRF v4.6.1 + WPS v4.6.0 compiled, w2w working
+- [x] Data acquisition: LCZ, geography, 16 × GFS f000 (soil-bearing), ERA5 validation
+- [x] LCZ-derived urban extent injected via w2w; corrected WPS/WRF namelists
+- [x] Full 18 h baseline WRF run, 19 hourly frames, classic NetCDF output
+- [x] Counterfactual WRF run (80% urban land use → grassland in LCZ 1–10), LCZ-wise differencing
+- [x] Emulator with LCZ- and time-blocked validation, prediction intervals, support checks
+- [x] Digital-twin engine, desktop app, QGIS plugin and icons (GUI smoke-tested; QGIS UI untested here)
+- [x] PyPI/GitHub release workflows
+- [ ] Second-year comparison — compute/time permitting
+
+Results: `output/results/REPORT.md`, `results.json`, `zonal_*.csv`, `compare_lu80.csv`.
+ERA5 point validation: bias -2.46 K, RMSE 3.12 K (n=19; held-out 12–18Z RMSE 3.44 K).
+Built LCZ response to the land-use intervention: mean ΔT2 -0.093 K (5 of 6 classes cool).
+
+Finding: perturbing `LAI` in `wrfinput` had **zero** effect on T2 — Noah recomputes
+LAI from land cover. The effective intervention is `LANDUSEF`, which WRF actually uses.
+
+See `CONSTRAINTS.md` for the quality bar that must not be lowered.

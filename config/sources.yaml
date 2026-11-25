@@ -1,0 +1,92 @@
+# Verified data sources (checked 2026-11-24). All downloads must record retrieval date + checksum.
+event:
+  thesis_dates: ["2020-07-31", "2020-08-01"]        # original case; FNL 2020 needs a UCAR account
+  simulation_dates: ["2022-07-24", "2022-07-27"]    # chosen no-account analogue: 25-26 Jul 2022 heat wave
+  analysis_dates: ["2022-07-25", "2022-07-26"]
+  center_lat: 45.4937
+  center_lon: 9.16646
+  reason_for_shift: "NOMADS keeps ~10 days; AWS GFS archive starts 2021-01-01. User chose 2021+."
+
+meteorology:
+  # WRF initial + lateral boundary conditions. 0.25 deg, 6-hourly, 3-D fields.
+  selected:
+    dataset: "GFS 0.25 operative analysis on AWS S3 (no account)"
+    url_template: "https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.YYYYMMDD/HH/atmos/gfs.tHHz.pgrb2.0p25.f000"
+    verified: "All 16 f000 files for 2022-07-24..27 at 00/06/12/18 UTC return HTTP 200; ecCodes confirms soilw/st fields."
+    cadence_h: 6
+    note: "Use f000, not .anl: the .anl files contain no soil moisture/temperature. Use updated Vtable.GFS with soil entries."
+  required_for_exact_thesis_period:
+    dataset: "NCEP GDAS/FNL 0.25 Degree Global Tropospheric Analyses"
+    portal: "https://gdex.ucar.edu/datasets/ds083.3/"
+    doi: "10.5065/D65Q4T4Z"
+    license: "CC BY 4.0"
+    file_pattern: "fnl_YYYYMMDD_HH_00.grib2"
+    auth: "FREE account required (UCAR/GDEX). NOMADS keeps only ~10 days."
+    status: "unused; selected path is AWS GFS 2022"
+  era5_fallback:
+    portal: "https://cds.climate.copernicus.eu/"
+    caveat: "Free account; ERA5 0.25 deg can initialise WRF viaera5_to_int."
+  validation_2022:  # point series, NOT usable as WRF boundary conditions
+    open_meteo:
+      url: "https://archive-api.open-meteo.com/v1/archive?latitude=45.4937&longitude=9.16646&start_date=2022-07-25&end_date=2022-07-26&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,soil_moisture_0_to_7cm,soil_temperature_0_to_7cm,total_column_integrated_water_vapour,shortwave_radiation&wind_speed_unit=ms&timezone=UTC&models=era5"
+      license: "CC BY 4.0 (Copernicus/ERA5 attribution)"
+      caveat: "ERA5 reanalysis, not station data: independent of GFS boundary data but not a true observation. Report as such."
+    nasa_power:
+      url: "https://power.larc.nasa.gov/api/temporal/hourly/point?parameters=T2M,U10M,V10M,PS,ALLSKY_SFC_SW_DWN&community=AG&longitude=9.16646&latitude=45.4937&start=20200731&end=20200801&format=JSON"
+
+static_geography:
+  base_url: "https://www2.mmm.ucar.edu/wrf/src/wps_files/"
+  files:
+    modis_20class: "modis_landuse_20class_30s_with_lakes.tar.bz2"   # 32.5 MB, num_land_cat=20
+    modis_21class: "modis_landuse_21class_30s.tar.bz2"              # 18.6 MB, the thesis's 21 categories
+    dem_30s: "topo_gmted2010_30s.tar.bz2"                          # 182.7 MB
+    usgs_24class: "landuse_30s_with_lakes.tar.bz2"                 # 21.0 MB
+    albedo_ncep: "albedo_ncep.tar.bz2"                             # 2.1 MB
+    urban_lcz: "cglc_modis_lcz_global.tar.gz"                      # optional global LCZ dataset
+    urban_fraction: "urbfrac_gaia2020_30s.tar.gz"
+    impervious_fraction: "impfrac_gaia2020_30s.tar.gz"
+  note: "For LCZ physics use use_wudapt_lcz=1 and num_land_cat=41 in WRF >=4.3."
+
+lcz:
+  primary:
+    city: "Milan (LCZ Generator, overall accuracy 0.96)"
+    id: "e655faa5fea035cc346fe35dbc19ad5f27966ef2"
+    geotiff: "https://lcz-generator.rub.de/factsheets/e655faa5fea035cc346fe35dbc19ad5f27966ef2/e655faa5fea035cc346fe35dbc19ad5f27966ef2.tif"
+    full_zip: "https://lcz-generator.rub.de/download/e655faa5fea035cc346fe35dbc19ad5f27966ef2"
+    factsheet: "https://lcz-generator.rub.de/factsheets/e655faa5fea035cc346fe35dbc19ad5f27966ef2/e655faa5fea035cc346fe35dbc19ad5f27966ef2_factsheet.html"
+    resolution_m: 100
+    bands: {1: lcz, 2: lcz_filter_recommended, 3: probability}
+    epoch: "2017-2019 EO inputs (thesis map from 2020 is not byte-identical)"
+    license: "CC BY-NC-SA 4.0"
+    caveat: "32 KB file = small city-centre ROI; check extent covers the WRF inner domain."
+  larger_roi:
+    id: "1af3e2631226430cda61bcb71e54762920d17c74"   # OA 0.71, 814 KB
+    url: "https://lcz-generator.rub.de/factsheets/1af3e2631226430cda61bcb71e54762920d17c74/1af3e2631226430cda61bcb71e54762920d17c74.tif"
+  european_map:
+    url: "https://ndownloader.figshare.com/files/35069446"  # 122 MB, 100 m, 2019
+    doi: "10.6084/m9.figshare.13322450"
+    license: "CC BY 4.0"
+  properties:
+    w2w_lookup: "https://raw.githubusercontent.com/matthiasdemuzere/w2w/main/w2w/resources/LCZ_UCP_lookup.csv"
+    paper_table: "https://essd.copernicus.org/articles/14/3835/2022/essd-14-3835-2022-t01.xlsx"
+    note: "Lookup gives urban fraction, building height, building density, H2W. Thermal properties from WRF's built-in LCZ table."
+
+observations:
+  arpa_lombardia:
+    status: "Covers 2011-2020 only; no 2022 rows for sensor 5911 (verified). Not usable for the 2022 case."
+    portal: "https://www.dati.lombardia.it"
+    license: "CC0 1.0; attribute ARPA Lombardia"
+    cadence: "10 min; timestamps are 'ora solare' (UTC+1, no DST) at interval END -> add 1 h for UTC"
+    datasets:
+      temperature: "d4kj-kbpj"     # sensor 5911, Milano v.Marche (45.49632, 9.19093)
+      wind_speed: "x9gp-z9xx"      # sensor 19019
+      wind_direction: "ypty-e75m"  # sensor 6048
+      stations: "my9y-8ykb"
+    example_temperature_csv: "https://www.dati.lombardia.it/resource/d4kj-kbpj.csv?$select=data,valore&$where=idsensore%3D%275911%27%20AND%20data%20%3E%3D%20%272020-07-31T00:00:00%27%20AND%20data%20%3C%20%272020-08-02T00:00:00%27&$order=data"
+
+wrf:
+  source: "https://github.com/wrf-model/WRF"
+  version: "v4.6.1"
+  wps_source: "https://github.com/wrf-model/WPS"
+  wps_version: "v4.6.0"   # WPS has no v4.6.1 tag
+  w2w: "pip install w2w  (LCZ -> urban canopy parameters)"

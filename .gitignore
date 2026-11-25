@@ -1,0 +1,24 @@
+# Raw/downloads and simulation outputs are not source code (tens of GB).
+data/
+output/
+
+# Third-party build trees (WRF/WPS) and the local micromamba environment.
+src/WPS/
+src/WRF/
+tools/
+
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Local environment / editors
+.venv/
+venv/
+.env
+.idea/
+.vscode/
+*.swp

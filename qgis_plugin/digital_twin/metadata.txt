@@ -1,0 +1,12 @@
+[general]
+name=Weather Digital Twin
+qgisMinimumVersion=3.22
+description=Generate a WRF case from lat/lon/radius/date and test land-use proposals
+version=0.1
+author=wrf-wudapt
+email=
+icon=icon.png
+tags=wrf,land use,climate,digital twin
+category=Analysis
+experimental=True
+deprecated=False

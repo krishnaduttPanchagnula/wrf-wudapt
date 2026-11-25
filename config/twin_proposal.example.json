@@ -1,0 +1,6 @@
+{
+  "area": {"lat": 45.4937, "lon": 9.16646, "radius_km": 10},
+  "from_cat": 13,
+  "to_cat": 10,
+  "fraction": 0.8
+}
