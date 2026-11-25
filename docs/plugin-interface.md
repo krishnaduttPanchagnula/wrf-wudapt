@@ -43,7 +43,9 @@ study can be afforded. `compare` writes `base_proposal_difference.html` with
 base / proposal / ΔT2 per LCZ and hour, plus validation metrics from
 `results.json` when present, and `delta_t2.tif` (EPSG:4326). The PGW offset is
 applied to initial and boundary temperature fields and checked for effect;
-no CMIP6 data is bundled.
+no CMIP6 data is bundled. `zonal_stats` adds a `UTCI` column from
+`src/heat_index.py` (official polynomial, support-checked; MRT approximated
+from WRF radiation). PET is out of scope without a physiological model.
 `proposal = {"area": {"lat", "lon", "radius_km"}, "from_cat", "to_cat", "fraction"}`.
 The QGIS brush writes `area`; the engine does the physics. Validation metrics
 are produced by `scripts/analyze.py`, not yet by the plugin layer loader.

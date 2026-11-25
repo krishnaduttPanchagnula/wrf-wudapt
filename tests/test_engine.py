@@ -4,7 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+import xarray as xr
 
 from wrf_digital_twin.engine import (CaseRequest, build_namelists, compare_years,
                                      study_name, warm_case, write_comparison_report,
@@ -104,6 +106,27 @@ class TestYearComparison(unittest.TestCase):
             self.assertIn("ERA5 test", text)
             self.assertIn("held-out RMSE 3.0 K", text)
             self.assertNotIn("No validation metrics found", text)
+
+    def test_utci_uses_official_support_and_is_monotonic(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+        from heat_index import utci, utci_from_wrf
+
+        base = utci(30.0, 50.0, 1.0, 40.0)
+        self.assertGreater(utci(32.0, 50.0, 1.0, 40.0), base)
+        self.assertGreater(utci(30.0, 50.0, 1.0, 50.0), base)
+        self.assertLess(utci(30.0, 50.0, 3.0, 40.0), base)
+        with self.assertRaises(ValueError):
+            utci(30.0, 50.0, 20.0, 40.0)  # outside polynomial support
+
+        ones = np.ones((2, 2))
+        ds = xr.Dataset({name: (("Time", "y", "x"), np.stack([values]))
+                         for name, values in {
+                             "T2": 303.15 * ones, "U10": ones, "V10": 0 * ones,
+                             "Q2": 0.01 * ones, "PSFC": 100000 * ones,
+                             "SWDOWN": 600 * ones, "ALBEDO": 0.2 * ones,
+                             "LWDNB": 350 * ones}.items()})
+        self.assertTrue(np.isfinite(utci_from_wrf(ds)).all())
 
     def test_warm_case_changes_initial_and_boundary_fields(self):
         from netCDF4 import Dataset

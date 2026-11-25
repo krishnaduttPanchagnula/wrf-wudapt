@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-DEFAULT_VARS = ("T2", "U10", "V10", "LH", "HFX", "ALBEDO", "SMSTAV")
+DEFAULT_VARS = ("T2", "U10", "V10", "LH", "HFX", "ALBEDO", "SMSTAV", "UTCI")
 
 
 def sample_lcz(wrfinput: str | Path, lcz_tif: str | Path) -> np.ndarray:
@@ -59,6 +59,10 @@ def zonal_stats(wrfout: str | Path, wrfinput: str | Path,
         for i, t in enumerate(times):
             vals = {}
             for v in variables:
+                if v == "UTCI":
+                    from heat_index import utci_from_wrf
+                    vals["UTCI"] = utci_from_wrf(ds, i).ravel()
+                    continue
                 if v not in ds:
                     continue
                 a = ds[v].isel(Time=i).values

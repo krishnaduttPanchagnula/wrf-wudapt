@@ -27,7 +27,7 @@ Legend: **✓** = observed on a source page / in our README; **—** = not prese
 | **Two-period / multi-year comparison** | ✓ added 2026-11-25: engine/CLI/UI, not executed | ✓ 2001–2100, decades | not observed | model can run any period; no product observed | ✓ today vs 2050, typical year | not observed |
 | Future climate scenarios (IPCC AR6 / SSP) | — (GFS archive 2021+) | ✓ any AR6 scenario | not observed | not observed | ✓ SSP2-4.5 example (morphed weather file) | not observed |
 | Long-period (decadal) simulation | — (18 h; 2-day ≈ 6 h wall time) | ✓ decades at ~100 m | not observed | model-level capability, no service | ✓ typical year / 2050, not decades | not observed |
-| Biometeorological indices (UTCI/PET) | — (T2 only observed) | partial — heat-stress indicators | ✓ PET, PT, UTCI | not observed | ✓ UTCI + comfort/stress | ✓ PET |
+| Biometeorological indices (UTCI/PET) | partial — UTCI added 2026-11-25 (approx. MRT), PET not implemented | partial — heat-stress indicators | ✓ PET, PT, UTCI | not observed | ✓ UTCI + comfort/stress | ✓ PET |
 | Independent validation with explicit metrics | ✓ ERA5 bias/RMSE, held-out period + `VALIDATION.md` (added 2026-11-25) | ✓ "extensive validation" stated; numbers not on pages checked | not observed | ✓ publications on verification/evaluation | ✓ field RMSE, held-out cities, PALM cross-check | ✓ observation comparison stated; numbers not on page |
 | GIS-friendly export / plugin | ✓ QGIS plugin, CSV | ✓ PNG quicklooks + data package; GeoTIFF not observed | not observed | not observed | ✓ GeoTIFF, 3D/map tiles, tables | ✓ embeddable map widget |
 | Non-expert GUI | ✓ desktop + QGIS | ✓ web simulator | GUI "not available to the general public until further notice" (stale wiki text) | not observed | ✓ web platform + API/SDK | ✓ web maps |
@@ -56,9 +56,9 @@ Evidence is labelled where it comes from a competitor page; feasibility is a one
    Evidence: UrbSim "according to any IPCC AR6 climate change scenario"; infrared "IPCC SSP climate scenarios, for example SSP2-4.5".
    Feasibility: **medium/high effort** — needs new boundary data and a careful no-extrapolation story per CONSTRAINTS.md; use physics runs only, not a nearest-neighbour clamp.
 
-5. **Derived heat-stress indices (UTCI/PET) alongside T2** —
+5. **Derived heat-stress indices (UTCI/PET) alongside T2** — **partially implemented 2026-11-25**: `src/heat_index.py` (official Broede a0.002 UTCI polynomial, coefficient table transcribed from utci.org, support checks) and a `UTCI` column in zonal CSVs; MRT is approximated from WRF radiation. **PET remains open** — it needs a physiological model and reference data we do not have.
    Evidence: PALM-4U "PET, PT, UTCI… provided as output"; infrared UTCI maps; meteoblue PET maps.
-   Feasibility: **medium** — WRF already provides temperature, humidity, wind and radiation; new derived variable plus validation.
+   Feasibility: UTCI done with a documented MRT approximation; PET medium/high effort.
 
 6. ~~**Dedicated validation report with metrics and held-out period**~~ — **implemented 2026-11-25** as `VALIDATION.md`, generated from `results.json` by `write_validation_report()` (also via `wrf-twin report`).
    Evidence: infrared's validation page publishes RMSE by city, held-out Melbourne/Guelph and cross-model comparison.

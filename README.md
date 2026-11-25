@@ -216,7 +216,12 @@ when `results.json` has them, otherwise the page says so instead of presenting
 an unchecked result. The same run writes `VALIDATION.md`: bias/MAE/RMSE for the
 full and held-out windows, emulator skill and provenance hashes, or an explicit
 "not validated" note when `results.json` is absent. It also exports
-`delta_t2.tif` (EPSG:4326) for QGIS or any GIS that reads GeoTIFF.
+`delta_t2.tif` (EPSG:4326) for QGIS or any GIS that reads GeoTIFF. Zonal CSVs
+also carry `UTCI` (degrees C) beside T2, computed from the official
+Broede a0.002 polynomial with its wind/radiation support limits enforced;
+mean radiant temperature is estimated from WRF radiation fluxes, so treat it
+as an approximation, not a globe-thermometer measurement. PET is not
+implemented: it needs a separate physiological model and reference data.
 
 `output/years/baseline_year_on_year.csv` is the weather difference between
 years (LCZ × calendar day × hour). `effect_year_on_year.csv`, written when both
